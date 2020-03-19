@@ -4,9 +4,9 @@
 import sys
 import serial
 import array
-import time
 import progressbar
 import getopt
+import json
 
 import settings
 # from settings import crctable
@@ -27,14 +27,11 @@ class bootdownload(object):
         counter = 0
         while i < 30:
             in_bin = self.s.read(1)
-            # b = bytearray(in_bin)
-            # print(i, " bin : ", ''.join('0x%02x ' % i for i in b))
             if in_bin == b'\x00':
                 continue
             if in_bin == b'\x20':
                 counter = counter + 1
             if counter == 5:
-                # print("counter: ", counter)
                 self.s.flushOutput()
                 self.s.write(settings.AA)
                 self.s.flushInput()
@@ -62,7 +59,10 @@ class bootdownload(object):
             print("\nFailed to open serial!", serialport)
             sys.exit(2)
 
-        self.chip = chiptype
+        with open(chiptype+".json", "r") as read_file:
+            data = json.load(read_file)
+        print(data)
+        self.chip = data
 
     def __del__(self):
         if self.s is not None:
@@ -111,36 +111,43 @@ class bootdownload(object):
         print('failed')
 
     def send_head_frame(self, length, address):
-        print('Send HEAD frame...')
+        print('Send HEAD frame...', address)
         self.s.timeout = 0.03
-        settings.headframe[self.chip][4] = (length >> 24) & 0xff
-        settings.headframe[self.chip][5] = (length >> 16) & 0xff
-        settings.headframe[self.chip][6] = (length >> 8) & 0xff
-        settings.headframe[self.chip][7] = (length) & 0xff
-        settings.headframe[self.chip][8] = (address >> 24) & 0xff
-        settings.headframe[self.chip][9] = (address >> 16) & 0xff
-        settings.headframe[self.chip][10] = (address >> 8) & 0xff
-        settings.headframe[self.chip][11] = (address) & 0xff
 
-        data = array.array('B', settings.headframe[self.chip]).tostring()
-        crc = self.calc_crc(data)
+        frame = bytearray(12)
+        frame[0] = settings.twos_complement_to_int(-2, 8)
+        frame[1] = settings.twos_complement_to_int(0, 8)
+        frame[2] = settings.twos_complement_to_int(-1, 8)
+        frame[3] = settings.twos_complement_to_int(1, 8)
+
+        frame[4] = (length >> 24) & 0xff
+        frame[5] = (length >> 16) & 0xff
+        frame[6] = (length >> 8) & 0xff
+        frame[7] = (length) & 0xff
+        frame[8] = (address >> 24) & 0xff
+        frame[9] = (address >> 16) & 0xff
+        frame[10] = (address >> 8) & 0xff
+        frame[11] = (address) & 0xff
+        crc = self.calc_crc(frame)
 
         h = bytearray(2)
         h[0] = (crc >> 8) & 0xff
         h[1] = crc & 0xff
-        data += h
-        self.sendframe(data, 16)
+        frame += h
+        self.sendframe(frame, 16)
 
-    def sendddrstep(self):
+    def send_ddrstep(self):
         print('Send DDRSTEP frame...')
         seq = 1
         self.s.timeout = 0.15
-        self.send_head_frame(64, settings.bootheadaddress[self.chip][0])
+
+        address0 = int(self.chip["ADDRESS"][0], 16)
+        self.send_head_frame(64, address0)
         head = bytearray(3)
         head[0] = 0xDA  # b'\xDA'  # 0xDA
         head[1] = seq & 0xFF
         head[2] = (~seq) & 0xFF
-        data = head + bytes(settings.DDRSTEP0[self.chip])
+        data = head + bytes(self.chip["DDRSTEP0"])
         crc = self.calc_crc(data)
         h = bytearray(2)
         h[0] = (crc >> 8) & 0xff
@@ -166,7 +173,6 @@ class bootdownload(object):
         self.sendframe(data, 16)
 
     def send_data_frame(self, seq, data):
-        # print('Send DATA frame...')
         self.s.timeout = 0.15
         head = bytearray(3)
         head[0] = 0xDA
@@ -183,9 +189,9 @@ class bootdownload(object):
         self.sendframe(data, 32)
 
     def store_SPL(self, data):
-        first_length = settings.FILELEN1[self.chip]
-        address1 = settings.bootheadaddress[self.chip][1]
-        self.send_head_frame(settings.FILELEN1[self.chip], address1)
+        first_length = int(self.chip["FILELEN"][1], 16)
+        address1 = int(self.chip["ADDRESS"][1], 16)
+        self.send_head_frame(first_length, address1)
 
         bar = progressbar.ProgressBar(maxval=first_length, widgets=[
             'Send DATA frame',
@@ -211,7 +217,7 @@ class bootdownload(object):
 
     def store_Uboot(self, data):
         length = len(data)
-        address2 = settings.bootheadaddress[self.chip][2]
+        address2 = int(self.chip["ADDRESS"][2], 16)
         self.send_head_frame(length, address2)
 
         bar = progressbar.ProgressBar(maxval=length, widgets=[
@@ -234,8 +240,8 @@ class bootdownload(object):
         bar.finish() if self.DEBUG == 0 else None
         self.send_tail_frame(seq)
 
-    def send_data(self, data, address):
-        self.sendddrstep()
+    def send_data(self, data):
+        self.send_ddrstep()
         self.store_SPL(data)
         self.store_Uboot(data)
 
@@ -245,7 +251,7 @@ class bootdownload(object):
         f.close()
 
         print('Sending', filename, '...')
-        self.send_data(data, settings.bootheadaddress[self.chip])
+        self.send_data(data)
         print('Done\n')
 
 
