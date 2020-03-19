@@ -1,0 +1,296 @@
+#!/usr/bin/python3
+#-*- coding: utf-8 -*-
+
+import sys
+import serial
+import array
+import time
+import progressbar
+import getopt
+
+import settings
+# from settings import crctable
+
+# print(settings.crctable)
+
+
+class bootdownload(object):
+    '''
+    Hisilicon boot downloader
+
+    >>> downloader = bootdownload()
+    >>> downloader.burn(filename)
+
+    '''
+    def init_bootmode(self):
+        i = 0
+        counter = 0
+        while i < 30:
+            in_bin = self.s.read(1)
+            # b = bytearray(in_bin)
+            # print(i, " bin : ", ''.join('0x%02x ' % i for i in b))
+            if in_bin == b'\x00':
+                continue
+            if in_bin == b'\x20':
+                counter = counter + 1
+            if counter == 5:
+                # print("counter: ", counter)
+                self.s.flushOutput()
+                self.s.write(settings.AA)
+                self.s.flushInput()
+                print("Welcome to boot-mode\n")
+                break
+            i = i + 1
+
+    def __init__(self, chiptype, serialport='/dev/ttyUSB0'):
+        print("Trying open", serialport)
+        try:
+            self.s = serial.Serial(
+                port=serialport,
+                baudrate=115200,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE,
+                bytesize=serial.EIGHTBITS,
+                timeout=None
+                #timeout = 1
+            )
+            self.init_bootmode()
+
+        except serial.serialutil.SerialException:
+            #no serial connection
+            self.s = None
+            print("\nFailed to open serial!", serialport)
+            sys.exit(2)
+
+        self.chip = chiptype
+
+    def __del__(self):
+        if self.s is not None:
+            self.s.close()
+
+    def calc_crc(self, data, crc=0):
+        for char in data:
+            crc = ((crc << 8) | char) ^ settings.crctable[(crc >> 8) & 0xff]
+        for i in range(0, 2):
+            crc = ((crc << 8) | 0) ^ settings.crctable[(crc >> 8) & 0xff]
+        return crc & 0xffff
+
+    def sendframe(self, data, loop):
+        for i in range(1, loop):
+            self.s.flushOutput()
+            if self.DEBUG == 1:
+                if len(data) > 20:
+                    print(
+                        "len: ",
+                        len(data),
+                        "write : [",
+                        ''.join('%02x ' % i for i in data[:20]), "... ]"
+                    )
+                else:
+                    print(
+                        "len: ",
+                        len(data),
+                        "write : [",
+                        ''.join('%02x ' % i for i in data), "]"
+                    )
+            self.s.write(data)
+            self.s.flushInput()
+            try:
+                ack = self.s.read()
+                if len(ack) == 1:
+                    if self.DEBUG == 1:
+                        print(
+                            "ret ack   : ",
+                            ''.join('0x%02x ' % i for i in ack)
+                        )
+                    if ack == settings.ack_b:
+                        return None
+            except:
+                return None
+
+        print('failed')
+
+    def send_head_frame(self, length, address):
+        print('Send HEAD frame...')
+        self.s.timeout = 0.03
+        settings.headframe[self.chip][4] = (length >> 24) & 0xff
+        settings.headframe[self.chip][5] = (length >> 16) & 0xff
+        settings.headframe[self.chip][6] = (length >> 8) & 0xff
+        settings.headframe[self.chip][7] = (length) & 0xff
+        settings.headframe[self.chip][8] = (address >> 24) & 0xff
+        settings.headframe[self.chip][9] = (address >> 16) & 0xff
+        settings.headframe[self.chip][10] = (address >> 8) & 0xff
+        settings.headframe[self.chip][11] = (address) & 0xff
+
+        data = array.array('B', settings.headframe[self.chip]).tostring()
+        crc = self.calc_crc(data)
+
+        h = bytearray(2)
+        h[0] = (crc >> 8) & 0xff
+        h[1] = crc & 0xff
+        data += h
+        self.sendframe(data, 16)
+
+    def sendddrstep(self):
+        print('Send DDRSTEP frame...')
+        seq = 1
+        self.s.timeout = 0.15
+        self.send_head_frame(64, settings.bootheadaddress[self.chip][0])
+        head = bytearray(3)
+        head[0] = 0xDA  # b'\xDA'  # 0xDA
+        head[1] = seq & 0xFF
+        head[2] = (~seq) & 0xFF
+        data = head + bytes(settings.DDRSTEP0[self.chip])
+        crc = self.calc_crc(data)
+        h = bytearray(2)
+        h[0] = (crc >> 8) & 0xff
+        h[1] = crc & 0xff
+        data += h
+
+        self.sendframe(data, 16)
+        self.send_tail_frame(seq + 1)
+
+    def send_tail_frame(self, seq):
+        print('Send TAIL frame...')
+        data = bytearray(3)
+        data[0] = 0xED
+        data[1] = seq & 0xFF
+        data[2] = (~seq) & 0xFF
+
+        crc = self.calc_crc(data)
+        h = bytearray(2)
+        h[0] = (crc >> 8) & 0xff
+        h[1] = crc & 0xff
+        data += h
+
+        self.sendframe(data, 16)
+
+    def send_data_frame(self, seq, data):
+        # print('Send DATA frame...')
+        self.s.timeout = 0.15
+        head = bytearray(3)
+        head[0] = 0xDA
+        head[1] = seq & 0xFF
+        head[2] = (~seq) & 0xFF
+        data = head + data
+
+        crc = self.calc_crc(data)
+        h = bytearray(2)
+        h[0] = (crc >> 8) & 0xff
+        h[1] = crc & 0xff
+        data += h
+
+        self.sendframe(data, 32)
+
+    def store_SPL(self, data):
+        first_length = settings.FILELEN1[self.chip]
+        address1 = settings.bootheadaddress[self.chip][1]
+        self.send_head_frame(settings.FILELEN1[self.chip], address1)
+
+        bar = progressbar.ProgressBar(maxval=first_length, widgets=[
+            'Send DATA frame',
+            progressbar.Bar(left='[', marker='=', right=']'),
+            progressbar.SimpleProgress(),
+        ]).start() if self.DEBUG == 0 else None
+
+        seq = 1
+        data = data[:first_length]
+        for chunk in (
+            data[_:_+settings.MAX_DATA_LEN] for _ in range(
+                0, first_length, settings.MAX_DATA_LEN
+            )
+        ):
+            self.send_data_frame(
+                seq,
+                chunk
+            )
+            bar.update(seq*len(chunk)) if self.DEBUG == 0 else None
+            seq += 1
+        bar.finish() if self.DEBUG == 0 else None
+        self.send_tail_frame(seq)
+
+    def store_Uboot(self, data):
+        length = len(data)
+        address2 = settings.bootheadaddress[self.chip][2]
+        self.send_head_frame(length, address2)
+
+        bar = progressbar.ProgressBar(maxval=length, widgets=[
+            'Send DATA frame',
+            progressbar.Bar(left='[', marker='=', right=']'),
+            progressbar.SimpleProgress(),
+        ]).start() if self.DEBUG == 0 else None
+        seq = 1
+        for chunk in (
+            data[_:_+settings.MAX_DATA_LEN] for _ in range(
+                0, length, settings.MAX_DATA_LEN
+            )
+        ):
+            self.send_data_frame(
+                seq,
+                chunk
+            )
+            bar.update(seq*len(chunk)) if self.DEBUG == 0 else None
+            seq += 1
+        bar.finish() if self.DEBUG == 0 else None
+        self.send_tail_frame(seq)
+
+    def send_data(self, data, address):
+        self.sendddrstep()
+        self.store_SPL(data)
+        self.store_Uboot(data)
+
+    def burn(self, filename):
+        f = open(filename, "rb")
+        data = f.read()
+        f.close()
+
+        print('Sending', filename, '...')
+        self.send_data(data, settings.bootheadaddress[self.chip])
+        print('Done\n')
+
+
+def main(argv):
+    usage = sys.argv[:1][0]
+    usage += '--chip <chip>'
+    usage += '--type=<ddr,spi,nand>'
+    usage += '--file=<file.bin>'
+    usage += '--port=<comport>'
+    usage += '--debug'
+
+    chip = ''
+    boot_type = 'ddr'
+    file = 'uboot.bin'
+    port = '/dev/ttyUSB0'
+    debug = 0
+    if len(argv) == 0:
+        print(usage)
+    try:
+        opts, args = getopt.getopt(
+            argv, "hc:t:f:p:d",
+            ["chip=", "type=", "file=", "port=", "debug="]
+        )
+        print("opts: ", opts)
+        print("args: ", args)
+    except getopt.GetoptError:
+        print(usage)
+        sys.exit(2)
+    for opt, arg in opts:
+        if opt == '-h':
+            print(usage)
+            sys.exit()
+        elif opt in ("-c", "--chip"):
+            chip = arg
+        elif opt in ("-t", "--type"):
+            boot_type = arg
+        elif opt in ("-f", "--file"):
+            file = arg
+        elif opt in ("-p", "--port"):
+            port = arg
+        elif opt in ("-d", "--debug"):
+            debug = 1
+    downloader = bootdownload(chip, port)
+    downloader.DEBUG = debug
+    downloader.burn(file)
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
