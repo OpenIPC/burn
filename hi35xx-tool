@@ -111,10 +111,10 @@ class bootdownload(object):
         print('failed')
 
     def send_head_frame(self, length, address):
-        print('Send HEAD frame...', address)
+        print('Send HEAD frame...')
         self.s.timeout = 0.03
 
-        frame = bytearray(12)
+        frame = bytearray(14)
         frame[0] = settings.twos_complement_to_int(-2, 8)
         frame[1] = settings.twos_complement_to_int(0, 8)
         frame[2] = settings.twos_complement_to_int(-1, 8)
@@ -128,12 +128,10 @@ class bootdownload(object):
         frame[9] = (address >> 16) & 0xff
         frame[10] = (address >> 8) & 0xff
         frame[11] = (address) & 0xff
-        crc = self.calc_crc(frame)
+        crc = self.calc_crc(frame[:12])
+        frame[12] = (crc >> 8) & 0xff
+        frame[13] = crc & 0xff
 
-        h = bytearray(2)
-        h[0] = (crc >> 8) & 0xff
-        h[1] = crc & 0xff
-        frame += h
         self.sendframe(frame, 16)
 
     def send_ddrstep(self):
