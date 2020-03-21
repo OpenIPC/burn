@@ -257,10 +257,11 @@ class bootdownload(object):
 
 def main(argv):
     usage = sys.argv[:1][0]
-    usage += '--chip <chip>'
-    usage += '--type=<ddr,spi,nand>'
-    usage += '--file=<file.bin>'
-    usage += '--port=<comport>'
+    usage += ' '
+    usage += '--chip <chip> '
+    usage += '--type=<ddr,spi,nand> '
+    usage += '--file=<file.bin> '
+    usage += '--port=<comport> '
     usage += '--debug'
 
     chip = ''
