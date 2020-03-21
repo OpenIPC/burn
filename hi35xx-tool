@@ -38,6 +38,7 @@ class bootdownload(object):
                 print("Welcome to boot-mode\n")
                 break
             i = i + 1
+        sys.exit(1)
 
     def __init__(self, chiptype, serialport='/dev/ttyUSB0'):
         print("Trying open", serialport)
@@ -65,6 +66,7 @@ class bootdownload(object):
         self.chip = data
 
     def __del__(self):
+        print("Exiting...")
         if self.s is not None:
             self.s.close()
 
