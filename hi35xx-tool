@@ -36,7 +36,7 @@ class bootdownload(object):
                 self.s.write(settings.AA)
                 self.s.flushInput()
                 print("Welcome to boot-mode\n")
-                break
+                return None
             i = i + 1
         sys.exit(1)
 
