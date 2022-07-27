@@ -3,20 +3,19 @@
 ## Basic usage
 
 ```console
-$ ./hi35xx-tool --chip <chip> --type=<ddr,spi,nand> --file=<file.bin> --port=<comport> --debug
+usage: hi35xx-tool [-h] -c
+                   {hi3516ev200,hi3520dv100,hi3518ev200,hi3516ev100,hi3518ev201,gk7205v300,hi3516ev300,hi3520dv200,hi3516cv500,hi3556v100,hi3516cv200,hi3516cv300,gk7205v200}
+                   -f FILE [-p PORT] [-b] [-d]
+
+options:
+  -h, --help            show this help message and exit
+  -c {hi3516ev200,hi3520dv100,hi3518ev200,hi3516ev100,hi3518ev201,gk7205v300,hi3516ev300,hi3520dv200,hi3516cv500,hi3556v100,hi3516cv200,hi3516cv300,gk7205v200}, --chip {hi3516ev200,hi3520dv100,hi3518ev200,hi3516ev100,hi3518ev201,gk7205v300,hi3516ev300,hi3520dv200,hi3516cv500,hi3556v100,hi3516cv200,hi3516cv300,gk7205v200}
+                        Chip model name
+  -f FILE, --file FILE  U-Boot binary file to load
+  -p PORT, --port PORT  Serial port device name
+  -b, --break           Send Ctrl-C just after load
+  -d, --debug           Set debug mode
 ```
-
-where
-
-* `--chip=<chip>`  -  chipname, for example "hi3520dv200"
-
-* `--type=<ddr,spi,nand>`  -  loading type, ddr or spi or nand
-
-* `--file=<file.bin>`  -  uboot.bin, bootloader for selected chip
-
-* `--port=<comport>`  -  uart port, by default /dev/ttyUSB0
-
-* `--debug or -d`  -  print more info
 
 ### CV300
 
