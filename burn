@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 
 import sys
+import os
 import serial
 import progressbar
-import getopt
+import argparse
 import json
 
 import settings
-# from settings import crctable
-
-# print(settings.crctable)
 
 
-class bootdownload(object):
+class bootdownload():
     '''
     Hisilicon boot downloader
 
@@ -38,7 +36,10 @@ class bootdownload(object):
             i = i + 1
         sys.exit(1)
 
-    def __init__(self, chiptype, serialport='/dev/ttyUSB0'):
+    def __init__(self, args):
+        serialport = args.port
+        chiptype = args.chip
+        self.DEBUG = args.debug
         print("Trying open", serialport)
         try:
             self.s = serial.Serial(
@@ -243,7 +244,7 @@ class bootdownload(object):
         self.store_SPL(data)
         self.store_Uboot(data)
 
-    def burn(self, filename):
+    def burn(self, filename, term):
         f = open(filename, "rb")
         data = f.read()
         f.close()
@@ -251,57 +252,39 @@ class bootdownload(object):
         print('Sending', filename, '...')
         self.send_data(data)
         print('Done\n')
-        return
-        print('Sending Ctrl-C\n')
-        while True:
-            self.s.send(b'\x03')
-            pkt = self.s.read(1)
-            print(pkt)
+
+        if term:
+            print('Sending Ctrl-C\n')
+            for i in range(1, 50):
+                self.s.write(b'\x03')
+                pkt = self.s.read(1)
 
 
-def main(argv):
-    usage = sys.argv[:1][0]
-    usage += ' '
-    usage += '--chip <chip> '
-    usage += '--type=<ddr,spi,nand> '
-    usage += '--file=<file.bin> '
-    usage += '--port=<comport> '
-    usage += '--debug'
+def available_chips():
+    result = []
+    for file in os.listdir():
+        if file.endswith(".json"):
+            result.append(file[:-5])
+    return result
 
-    chip = ''
-    boot_type = 'ddr'
-    file = 'uboot.bin'
-    port = '/dev/ttyUSB0'
-    debug = 0
-    if len(argv) == 0:
-        print(usage)
-    try:
-        opts, args = getopt.getopt(
-            argv, "hc:t:f:p:d",
-            ["chip=", "type=", "file=", "port=", "debug="]
-        )
-        print("opts: ", opts)
-        print("args: ", args)
-    except getopt.GetoptError:
-        print(usage)
-        sys.exit(2)
-    for opt, arg in opts:
-        if opt == '-h':
-            print(usage)
-            sys.exit()
-        elif opt in ("-c", "--chip"):
-            chip = arg
-        elif opt in ("-t", "--type"):
-            boot_type = arg
-        elif opt in ("-f", "--file"):
-            file = arg
-        elif opt in ("-p", "--port"):
-            port = arg
-        elif opt in ("-d", "--debug"):
-            debug = 1
-    downloader = bootdownload(chip, port)
-    downloader.DEBUG = debug
-    downloader.burn(file)
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--chip", required=True,
+                        choices=available_chips(), help="Chip model name")
+    parser.add_argument("-f", "--file", required=True,
+                        help="U-Boot binary file to load")
+    parser.add_argument("-p", "--port", default="/dev/ttyUSB0",
+                        help="Serial port device name")
+    parser.add_argument("-b", "--break", dest='term', action='store_true',
+                        help="Send Ctrl-C to prevent autoload")
+    parser.add_argument("-d", "--debug", action='store_true',
+                        help="Set debug mode")
+    args = parser.parse_args()
+
+    downloader = bootdownload(args)
+    downloader.burn(args.file, args.term)
+
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()
