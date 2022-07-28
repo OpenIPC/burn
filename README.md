@@ -30,7 +30,17 @@ version](https://github.com/OpenIPC/openipc-2.1/releases/download/latest/u-boot-
 of U-Boot.
 
 ```console
-$ ./burn --chip hi3516ev200 --file=u-boot-hi3516ev300-beta.bin ; screen -L /dev/ttyUSB0 115200
+$ ./burn --chip hi3516ev200 --file=u-boot-hi3516ev300-beta.bin; screen -L /dev/ttyUSB0 115200
+```
+
+### Unlock flash on gk7205v300
+
+```console
+$ ./burn --chip gk7205v300 --file=u-boot/gk7205v300.bin --break; screen -L /dev/ttyUSB0 115200
+goke # sf probe
+@do_spi_flash_probe() flash->erase_size: 65536, flash->sector_size: 0
+goke # sf lock 0
+unlock all block.
 ```
 
 ## U-Boot continuous integration
