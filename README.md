@@ -26,11 +26,11 @@ options:
 ### EV300
 
 Download special [recovery mode
-version](https://github.com/OpenIPC/openipc-2.1/releases/download/latest/u-boot-hi3516ev300-beta.bin)
+version](https://github.com/OpenIPC/firmware/releases/download/latest/u-boot-hi3516ev300-universal.bin)
 of U-Boot.
 
 ```console
-$ ./burn --chip hi3516ev200 --file=u-boot-hi3516ev300-beta.bin; screen -L /dev/ttyUSB0 115200
+$ ./burn --chip hi3516ev200 --file=u-boot-hi3516ev300-beta.bin --break; screen -L /dev/ttyUSB0 115200
 ```
 
 ### Unlock flash on gk7205v300
