@@ -273,7 +273,7 @@ def main():
     parser.add_argument("-c", "--chip", required=True,
                         choices=available_chips(), help="Chip model name")
     parser.add_argument("-f", "--file", required=True,
-                        help="U-Boot binary file to load")
+                        help="U-Boot binary file to upload")
     parser.add_argument("-p", "--port", default="/dev/ttyUSB0",
                         help="Serial port device name")
     parser.add_argument("-b", "--break", dest='term', action='store_true',
