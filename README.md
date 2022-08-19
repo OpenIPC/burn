@@ -11,9 +11,9 @@ options:
   -h, --help            show this help message and exit
   -c {hi3516ev200,hi3520dv100,hi3518ev200,hi3516ev100,hi3518ev201,gk7205v300,hi3516ev300,hi3520dv200,hi3516cv500,hi3556v100,hi3516cv200,hi3516cv300,gk7205v200}, --chip {hi3516ev200,hi3520dv100,hi3518ev200,hi3516ev100,hi3518ev201,gk7205v300,hi3516ev300,hi3520dv200,hi3516cv500,hi3556v100,hi3516cv200,hi3516cv300,gk7205v200}
                         Chip model name
-  -f FILE, --file FILE  U-Boot binary file to load
+  -f FILE, --file FILE  U-Boot binary file to upload
   -p PORT, --port PORT  Serial port device name
-  -b, --break           Send Ctrl-C just after load
+  -b, --break           Send Ctrl-C just after upload
   -d, --debug           Set debug mode
 ```
 
