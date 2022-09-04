@@ -17,6 +17,12 @@ options:
   -d, --debug           Set debug mode
 ```
 
+If burn complains about **missing python modules**, you should install the list of modules by running:
+
+```
+pip install -r requirements.txt
+```
+
 ### CV300
 
 ```
