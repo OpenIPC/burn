@@ -39,6 +39,16 @@ of U-Boot.
 $ ./burn --chip hi3516ev200 --file=u-boot-hi3516ev300-beta.bin --break; screen -L /dev/ttyUSB0 115200
 ```
 
+### Unlock flash on gk7205v200
+
+```console
+$ ./burn --chip gk7205v200 --file=u-boot/gk7205v200.bin --break; screen -L /dev/ttyUSB0 115200
+goke # sf probe
+@do_spi_flash_probe() flash->erase_size: 65536, flash->sector_size: 0
+goke # sf lock 0
+unlock all block.
+```
+
 ### Unlock flash on gk7205v300
 
 ```console
