@@ -59,6 +59,12 @@ goke # sf lock 0
 unlock all block.
 ```
 
+### Start kernel from memory
+
+```console
+setenv ipaddr 192.168.1.1; setenv serverip 192.168.1.10; mw.b 0x42000000 ff 1000000; tftpboot 0x42000000 rootfs.squashfs.${soc}; bootm 0x42000000
+```
+
 ## U-Boot continuous integration
 
 Real world example on U-Boot developing for CV300 board:
