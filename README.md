@@ -62,7 +62,7 @@ unlock all block.
 ### Start kernel from memory
 
 ```console
-setenv ipaddr 192.168.1.1; setenv serverip 192.168.1.10; mw.b 0x42000000 ff 1000000; tftpboot 0x42000000 rootfs.squashfs.${soc}; bootm 0x42000000
+setenv ipaddr 192.168.1.1; setenv serverip 192.168.1.10; mw.b 0x42000000 ff 1000000; tftpboot 0x42000000 uImage.${soc}; bootm 0x42000000
 ```
 
 ## U-Boot continuous integration
