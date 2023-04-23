@@ -1,8 +1,8 @@
 # Burn
 
-## Video instructions for different systems
+### Video Tutorials
 
-[View on YouTube][youtube_burn]
+[OpenIPC BURN Utility Playlist][youtube_burn]
 
 ## Basic usage
 
