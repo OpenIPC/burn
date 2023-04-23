@@ -90,3 +90,5 @@ cd ~/git/burn
 ./burn --chip hi3516cv300 --file=mini-boot.bin
 screen /dev/ttyUSB0 115200
 ```
+
+[youtube_burn]: https://youtube.com/playlist?list=PLh0sgk8j8CfsMPq9OraSt5dobTIe8NXmw
