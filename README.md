@@ -1,6 +1,6 @@
 # Burn
 
-### Video Tutorials
+## Video Tutorials
 
 [OpenIPC BURN Utility Playlist][youtube_burn]
 
