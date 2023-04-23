@@ -91,4 +91,8 @@ cd ~/git/burn
 screen /dev/ttyUSB0 115200
 ```
 
-[youtube_burn]: https://youtube.com/playlist?list=PLh0sgk8j8CfsMPq9OraSt5dobTIe8NXmw
+### Video Tutorials
+
+[OpenIPC BURN Utility Playlist](https://www.youtube.com/playlist?list=PLh0sgk8j8CfsMPq9OraSt5dobTIe8NXmw)
+
+
