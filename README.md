@@ -1,5 +1,9 @@
 # Burn
 
+## Video instructions for different systems
+
+[View on YouTube][youtube_burn]
+
 ## Basic usage
 
 ```console
