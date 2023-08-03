@@ -5,6 +5,10 @@
 
 [OpenIPC BURN Utility Playlist][youtube_burn]
 
+## Archive of current bootloaders for devices
+
+**Please use only this [Archive of current bootloaders for devices][uboot_archive] !!!**
+
 ## Basic usage
 
 ```console
@@ -97,3 +101,4 @@ screen /dev/ttyUSB0 115200
 ```
 
 [youtube_burn]: https://youtube.com/playlist?list=PLh0sgk8j8CfsMPq9OraSt5dobTIe8NXmw
+[uboot_archive]: https://github.com/OpenIPC/firmware/releases/tag/latest
