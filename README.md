@@ -32,20 +32,24 @@ If burn complains about **missing python modules**, you should install the list 
 pip install -r requirements.txt
 ```
 
-### CV300
+### HI3516CV300
+
+Download [general
+version](https://github.com/OpenIPC/firmware/releases/download/latest/u-boot-hi3516cv300-universal.bin)
+of U-Boot.
 
 ```
-./burn --chip hi3516cv300 --file=u-boot/hi3516cv300.bin
+./burn --chip hi3516cv300 --file=u-boot-hi3516cv300-universal.bin --break; screen -L /dev/ttyUSB0 115200
 ```
 
-### EV300
+### Hi3516EV300
 
-Download special [recovery mode
+Download [general
 version](https://github.com/OpenIPC/firmware/releases/download/latest/u-boot-hi3516ev300-universal.bin)
 of U-Boot.
 
 ```console
-$ ./burn --chip hi3516ev200 --file=u-boot-hi3516ev300-beta.bin --break; screen -L /dev/ttyUSB0 115200
+$ ./burn --chip hi3516ev200 --file=u-boot-hi3516ev300-universal.bin --break; screen -L /dev/ttyUSB0 115200
 ```
 
 ### Unlock flash on gk7205v200 and gk7205v210
