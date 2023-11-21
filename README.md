@@ -49,7 +49,7 @@ version](https://github.com/OpenIPC/firmware/releases/download/latest/u-boot-hi3
 of U-Boot.
 
 ```console
-$ ./burn --chip hi3516ev200 --file=u-boot-hi3516ev300-universal.bin --break; screen -L /dev/ttyUSB0 115200
+$ ./burn --chip hi3516ev300 --file=u-boot-hi3516ev300-universal.bin --break; screen -L /dev/ttyUSB0 115200
 ```
 
 ### Unlock flash on gk7205v200 and gk7205v210
