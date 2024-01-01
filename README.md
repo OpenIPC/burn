@@ -9,6 +9,10 @@
 
 **Please use only this [Archive of current bootloaders for devices][uboot_archive] !!!**
 
+## Features of use in MacOS
+
+**Attention !** There are some problems with using Burn in MacOS and you can participate in the [discussion](https://github.com/OpenIPC/burn/issues/16)
+
 ## Basic usage
 
 ```console
