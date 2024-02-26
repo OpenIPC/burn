@@ -36,6 +36,19 @@ class bootdownload():
             i = i + 1
         sys.exit(1)
 
+    def load_config(self, chiptype):
+        max_nesting = 23
+        while max_nesting > 0:
+            max_nesting -= 1
+            with open(chiptype + ".json", "r") as read_file:
+                file_contents = read_file.read()
+                file_lines = file_contents.split()
+                if len(file_lines) == 1 and file_lines[0].endswith(".json"):
+                    chiptype = file_lines[0][0:-5]
+                    continue
+                return json.loads(file_contents)
+        return None
+
     def __init__(self, args):
         serialport = args.port
         chiptype = args.chip
@@ -59,8 +72,7 @@ class bootdownload():
             print("\nFailed to open serial!", serialport)
             sys.exit(2)
 
-        with open(chiptype+".json", "r") as read_file:
-            data = json.load(read_file)
+        data = self.load_config(chiptype)
         print(data)
         self.chip = data
 
