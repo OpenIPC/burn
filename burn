@@ -40,7 +40,7 @@ class bootdownload():
         max_nesting = 23
         while max_nesting > 0:
             max_nesting -= 1
-            with open(chiptype + ".json", "r") as read_file:
+            with open("profiles/" + chiptype + ".json", "r") as read_file:
                 file_contents = read_file.read()
                 file_lines = file_contents.split()
                 if len(file_lines) == 1 and file_lines[0].endswith(".json"):
@@ -274,7 +274,7 @@ class bootdownload():
 
 def available_chips():
     result = []
-    for file in os.listdir():
+    for file in os.listdir("profiles"):
         if file.endswith(".json"):
             result.append(file[:-5])
     return result
