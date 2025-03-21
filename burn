@@ -3,11 +3,16 @@
 import sys
 import os
 import serial
+import struct
 import progressbar
 import argparse
 import json
+import time
 
 import settings
+
+gk7205v500_socs = ["gk7205v500", "gk7205v510",
+                   "gk7205v530", "xm7205v500", "xm7205v510", "xm7205v530"]
 
 
 class bootdownload():
@@ -51,7 +56,7 @@ class bootdownload():
 
     def __init__(self, args):
         serialport = args.port
-        chiptype = args.chip
+        self.chiptype = args.chip
         self.DEBUG = args.debug
         print("Trying open", serialport)
         try:
@@ -62,17 +67,21 @@ class bootdownload():
                 stopbits=serial.STOPBITS_ONE,
                 bytesize=serial.EIGHTBITS,
                 timeout=None
-                #timeout = 1
+                # timeout = 1
             )
-            self.init_bootmode()
+            if self.chiptype in gk7205v500_socs:
+                self.handshake_v500()
+                return
+            else:
+                self.init_bootmode()
 
         except serial.serialutil.SerialException:
-            #no serial connection
+            # no serial connection
             self.s = None
             print("\nFailed to open serial!", serialport)
             sys.exit(2)
 
-        data = self.load_config(chiptype)
+        data = self.load_config(self.chiptype)
         print(data)
         self.chip = data
 
@@ -87,6 +96,12 @@ class bootdownload():
         for i in range(0, 2):
             crc = ((crc << 8) | 0) ^ settings.crctable[(crc >> 8) & 0xff]
         return crc & 0xffff
+
+    def append_crc(self, frm):
+        crc = self.calc_crc(frm)
+        frm += (crc >> 8 & 255).to_bytes(1, 'big')
+        frm += (crc & 255).to_bytes(1, 'big')
+        return frm
 
     def sendframe(self, data, loop):
         for i in range(1, loop):
@@ -208,7 +223,7 @@ class bootdownload():
             'Send DATA frame',
             progressbar.Bar(left='[', marker='=', right=']'),
             progressbar.SimpleProgress(),
-        ]).start() if self.DEBUG == 0 else None
+        ], term_width=80).start() if self.DEBUG == 0 else None
 
         seq = 1
         data = data[:first_length]
@@ -235,7 +250,7 @@ class bootdownload():
             'Send DATA frame',
             progressbar.Bar(left='[', marker='=', right=']'),
             progressbar.SimpleProgress(),
-        ]).start() if self.DEBUG == 0 else None
+        ], term_width=80).start() if self.DEBUG == 0 else None
         seq = 1
         for chunk in (
             data[_:_+settings.MAX_DATA_LEN] for _ in range(
@@ -251,10 +266,116 @@ class bootdownload():
         bar.finish() if self.DEBUG == 0 else None
         self.send_tail_frame(seq)
 
+    def sendFrmWaitAck(self, wdata, timeout):
+        ret = self.s.write(wdata)
+        if not ret:
+            return False
+        tryX = 0
+        start_time = time.time()
+        while time.time() - start_time < timeout and tryX < 10:
+            rdata = self.s.read()
+            if rdata is None:
+                return False
+            if rdata == b'\xaa':
+                # print('ACK')
+                return True
+            if rdata == b'U':
+                # print('bootrom NAK. Retransmission...')
+                ret = self.s.write(wdata)
+                if not ret:
+                    return False
+                tryX += 1
+                continue
+        return False
+
+    def sendDataToBootrom_v500(self, data, address, title):
+        idx = 0
+        pos = 0
+        length = len(data)
+        count = (length + 1023) // 1024
+
+        frm0 = b'\xfe\x00\xff\x01'
+        frm0 += struct.pack('BBBB', length >> 24 & 255,
+                            length >> 16 & 255, length >> 8 & 255, length & 255)
+        frm0 += struct.pack('BBBB', address >> 24 & 255, address >>
+                            16 & 255, address >> 8 & 255, address & 255)
+        frm0 = self.append_crc(frm0)
+        ret = self.sendFrmWaitAck(frm0, 4)
+        if ret != True:
+            return ret
+
+        bar = progressbar.ProgressBar(maxval=length, widgets=[
+            title,
+            progressbar.Bar(left='[', marker='=', right=']'),
+            progressbar.Percentage(),
+        ], term_width=80).start() if self.DEBUG == 0 else None
+
+        while length > 0:
+            idx += 1
+            numOfSend = 1024 if length > 1024 else length
+            length -= numOfSend
+            splitx = data[pos:pos + numOfSend]
+            pos += numOfSend
+            frm1 = b'\xda'
+            frm1 += struct.pack('B', idx & 255)
+            frm1 += struct.pack('B', ~idx & 255)
+            frm1 += splitx
+            frm1 = self.append_crc(frm1)
+
+            bar.update(numOfSend*idx) if self.DEBUG == 0 else None
+            ret = self.sendFrmWaitAck(frm1, 4)
+            if ret != True:
+                return ret
+        count += 1
+        frm2 = b'\xed'
+        frm2 += struct.pack('B', count & 255)
+        frm2 += struct.pack('B', ~count & 255)
+        frm2 = self.append_crc(frm2)
+        ret = self.sendFrmWaitAck(frm2, 4)
+        if ret != True:
+            return ret
+        bar.finish() if self.DEBUG == 0 else None
+        return True
+
+    def handshake_v500(self):
+        """Send bootrom handshake until a valid response is received."""
+        frmRemoteBurnBoot = self.append_crc(
+            b'\xbd\x00\xff\x01\x00\x00\x00\x00\x00\x00\x00\x00')
+        try:
+            start_time = time.time()
+            self.s.timeout = 0
+            while time.time() - start_time < 20:
+                self.s.write(frmRemoteBurnBoot)
+                response = self.s.read(14)
+                if response.startswith(b'\xbd\x00'):
+                    chipid, = struct.unpack('>I', response[8:12])
+                    print("Detected SoC:", hex(chipid))
+                    break
+        except:
+            print(f"Handshake error")
+            sys.exit(1)
+
     def send_data(self, data):
-        self.send_ddrstep()
-        self.store_SPL(data)
-        self.store_Uboot(data)
+        if self.chiptype in gk7205v500_socs:
+            bootLoadAddr = 0x41000000
+            headOffset = 0
+            headAreaLen = 8192
+            auxcodeOffset = 8192
+            auxcodeAreaLen, = struct.unpack('I', data[1024:1028])
+            headAreaData = data[headOffset:headOffset + headAreaLen]
+            headAreaAddr = headOffset
+            auxcodeAreaData = data[auxcodeOffset:auxcodeOffset + auxcodeAreaLen]
+            auxcodeAreaAddr = auxcodeOffset
+            self.sendDataToBootrom_v500(
+                headAreaData, headAreaAddr, "Sending HEAD")
+            self.sendDataToBootrom_v500(
+                auxcodeAreaData, auxcodeAreaAddr, "Sending  AUX")
+            time.sleep(0.1)
+            self.sendDataToBootrom_v500(data, bootLoadAddr, "Sending BOOT")
+        else:
+            self.send_ddrstep()
+            self.store_SPL(data)
+            self.store_Uboot(data)
 
     def burn(self, filename, term):
         f = open(filename, "rb")
@@ -277,6 +398,7 @@ def available_chips():
     for file in os.listdir("profiles"):
         if file.endswith(".json"):
             result.append(file[:-5])
+    result.extend(gk7205v500_socs)
     return result
 
 
