@@ -14,6 +14,7 @@ import settings
 gk7205v500_socs = ["gk7205v500", "gk7205v510",
                    "gk7205v530", "xm7205v500", "xm7205v510", "xm7205v530"]
 
+hi3516cv6xx_socs = ["hi3516cv608", "hi3516cv610", "hi3516cv613", "hi3516dv500", "hi3519dv500"]
 
 class bootdownload():
     '''
@@ -71,6 +72,9 @@ class bootdownload():
             )
             if self.chiptype in gk7205v500_socs:
                 self.handshake_v500()
+                return
+            elif self.chiptype in hi3516cv6xx_socs:
+                self.handshake_cv610()
                 return
             else:
                 self.init_bootmode()
@@ -337,6 +341,113 @@ class bootdownload():
         bar.finish() if self.DEBUG == 0 else None
         return True
 
+    def handshake_cv610(self):
+            frame = bytearray([0xEF, 0xBE, 0xAD, 0xDE, 0x12, 0x00, 0xF0, 0x0F])
+            frame += struct.pack("<I", self.s.baudrate)
+            frame += bytearray([8, 1, 0, 9])
+            crc = self.calc_crc(frame)
+            frame += struct.pack("<H", crc)
+
+            self.s.timeout = 0.01
+            buffer = bytearray()
+            while True:
+                try:
+                    self.s.write(frame)
+                    time.sleep(0.01)
+                    if self.s.in_waiting > 0:
+                        buffer += self.s.read(self.s.in_waiting)
+                        if b'uart ddr' in buffer or b'uart flash' in buffer:
+                            print("\n[+] BootROM handshake complete")
+                            time.sleep(0.5)
+                            self.s.reset_input_buffer()
+                            return
+                except KeyboardInterrupt:
+                    sys.exit(1)
+
+    def parse_cv610_boot(self, file_data):
+        # 1. GSL
+        magic_gsl = struct.unpack("<I", file_data[2048:2052])[0]
+        if magic_gsl != 0x4BB4D22D:
+            raise ValueError(f"Invalid GSL Magic! Expected 0x4BB4D22D, got {hex(magic_gsl)}")
+        gsl_len = struct.unpack("<I", file_data[2084:2088])[0]
+        gsl_size = gsl_len + 3072
+        gsl_data = file_data[:gsl_size]
+
+        # 2. DDR Params
+        params_start = gsl_size + 1024
+        magic_params = struct.unpack("<I", file_data[params_start:params_start+4])[0]
+        if magic_params != 0x4B87A52D:
+            raise ValueError(f"Invalid Params Magic! Expected 0x4B87A52D, got {hex(magic_params)}")
+
+        offset_32   = struct.unpack("<I", file_data[params_start+32:params_start+36])[0]
+        table_size  = struct.unpack("<I", file_data[params_start+36:params_start+40])[0]
+        table_count = struct.unpack("<I", file_data[params_start+40:params_start+44])[0]
+        board_mapping = file_data[params_start+300 : params_start+308]
+
+        # 3. U-Boot
+        uboot_magic_offset = file_data.find(struct.pack("<I", 0x4BF01E2D), params_start)
+        if uboot_magic_offset == -1:
+            raise ValueError("U-Boot Magic 0x4BF01E2D not found in file!")
+
+        uboot_len = struct.unpack("<I", file_data[uboot_magic_offset+36:uboot_magic_offset+40])[0]
+        uboot_size = uboot_len + 1024
+        uboot_data = file_data[uboot_magic_offset : uboot_magic_offset + uboot_size]
+
+        print(f"    [1] GSL Code Size    : {len(gsl_data)} bytes")
+        print(f"    [2] DDR Tables Found : {table_count} (Size: {table_size} bytes)")
+        print(f"    [3] U-Boot Main Size : {len(uboot_data)} bytes")
+
+        return {
+            "gsl_data": gsl_data, "gsl_size": gsl_size, "params_start": params_start,
+            "offset_32": offset_32, "table_count": table_count, "table_size": table_size,
+            "board_mapping": board_mapping, "uboot_data": uboot_data, "file_data": file_data
+        }
+
+    def build_ddrtable_cv610(self, parsed_file, board_id=0):
+        mapping = parsed_file["board_mapping"]
+        board_id = board_id if board_id < len(mapping) else 0
+        mapped_index = mapping[board_id]
+
+        if mapped_index >= parsed_file["table_count"]:
+            mapped_index = 0
+
+        gsl_size = parsed_file["gsl_size"]
+        table_size = parsed_file["table_size"]
+        offset_32 = parsed_file["offset_32"]
+        file_data = parsed_file["file_data"]
+
+        ddr_buf = bytearray()
+        ddr_buf.extend(file_data[gsl_size : gsl_size + 2048])
+        table_offset = gsl_size + 2048 + offset_32 + (mapped_index * table_size)
+        ddr_buf.extend(file_data[table_offset : table_offset + table_size])
+
+        return bytes(ddr_buf)
+
+    def get_boardid_cv610(self):
+        t_bytes = struct.pack(">I", int(time.time()))
+        frame = bytearray([0xCE, 0x00, 0xFF, 0x01]) + t_bytes + t_bytes
+        frame = self.append_crc(frame)
+
+        self.s.reset_input_buffer()
+        self.s.write(frame)
+
+        t0 = time.time()
+        buf = bytearray()
+        while time.time() - t0 < 2.0:
+            if self.s.in_waiting > 0:
+                buf += self.s.read(self.s.in_waiting)
+                if b'\xCE' in buf:
+                    idx = buf.index(b'\xCE')
+                    if len(buf) >= idx + 11 and buf[idx+10] == 0xAA:
+                        resp = buf[idx : idx+11]
+                        cpu_id = resp[1]
+                        board_id = struct.unpack(">I", resp[4:8])[0]
+                        print(f"    CPU ID   : {hex(cpu_id)}")
+                        print(f"    Board ID : {board_id}")
+                        return board_id
+            time.sleep(0.01)
+        return 0
+
     def handshake_v500(self):
         """Send bootrom handshake until a valid response is received."""
         frmRemoteBurnBoot = self.append_crc(
@@ -372,6 +483,39 @@ class bootdownload():
                 auxcodeAreaData, auxcodeAreaAddr, "Sending  AUX")
             time.sleep(0.1)
             self.sendDataToBootrom_v500(data, bootLoadAddr, "Sending BOOT")
+
+        elif self.chiptype in hi3516cv6xx_socs:
+            parsed = self.parse_cv610_boot(data)
+            self.s.timeout = 0.05
+
+            # Send GSL
+            ret = self.sendDataToBootrom_v500(parsed["gsl_data"], 0x04020000, "Sending GSL")
+            if not ret: sys.exit(1)
+
+            # Extract & Send DDR Table
+            board_id = self.get_boardid_cv610()
+            ddr_table_data = self.build_ddrtable_cv610(parsed, board_id)
+            ret = self.sendDataToBootrom_v500(ddr_table_data, 0x41000000, "Sending DDR Init Table")
+            if not ret: sys.exit(1)
+
+            # Wait for DDR to train
+            t_wait = time.time()
+            self.s.timeout = 0
+            while time.time() - t_wait < 1.5:
+                if self.s.in_waiting > 0:
+                    chunk = self.s.read(self.s.in_waiting)
+                    ascii_str = ''.join(chr(b) for b in chunk if 32 <= b <= 126 or b in (10, 13))
+                    if ascii_str.strip():
+                        sys.stdout.write(ascii_str)
+                        sys.stdout.flush()
+                time.sleep(0.05)
+            self.s.timeout = 0.05
+            print("\n")
+
+            # Send U-Boot
+            ret = self.sendDataToBootrom_v500(parsed["uboot_data"], 0x41000000, "Sending U-Boot")
+            if not ret: sys.exit(1)
+
         else:
             self.send_ddrstep()
             self.store_SPL(data)
@@ -399,6 +543,7 @@ def available_chips():
         if file.endswith(".json"):
             result.append(file[:-5])
     result.extend(gk7205v500_socs)
+    result.extend(hi3516cv6xx_socs)
     return result
 
 
