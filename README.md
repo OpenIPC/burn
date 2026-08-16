@@ -1,5 +1,46 @@
 # Burn
 
+> [!IMPORTANT]
+> ## Burn is superseded by [defib](https://github.com/OpenIPC/defib)
+>
+> This tool is no longer developed. Use **[defib](https://github.com/OpenIPC/defib)**
+> instead — it does everything Burn does and fixes the problems people most often
+> hit here.
+>
+> **Nothing to install — [openipc.github.io/defib](https://openipc.github.io/defib/)**
+> runs in Chrome, Edge or Opera. Pick your chip, download the U-Boot image, choose
+> your serial port, go. There's a **Dump Flash** button for taking a backup first.
+> (Some SoCs still need the CLI — the page tells you which.)
+>
+> Or install it:
+>
+> ```sh
+> uv tool install defib     # or: pipx install defib
+> defib burn -c hi3516ev300 -p /dev/ttyUSB0 -t
+> ```
+>
+> What you get over Burn:
+>
+> | | Burn | defib |
+> |---|---|---|
+> | Supported SoCs | 13 | 112 |
+> | Protocols | Standard | Standard, V500, CV6xx |
+> | macOS | [broken](https://github.com/OpenIPC/burn/issues/16) | fixed (ACK correction) |
+> | Flash write when vendor locked the chip | fails silently | handled ([why](https://github.com/OpenIPC/u-boot-gk7205v200/issues/18)) |
+> | Full firmware install | manual TFTP | `defib install`, one command |
+> | Flash backup / restore | — | yes, with CRC32 verification |
+> | Browser UI | — | yes |
+>
+> **If flashing "succeeded" but the old bootloader is still there**, that is not a
+> Burn bug and no amount of `sf lock 0` will fix it — the vendor bootloader set
+> `SR3.WPS=1` on the flash and the write was silently discarded. See
+> [#8](https://github.com/OpenIPC/burn/issues/8) and
+> [#20](https://github.com/OpenIPC/burn/issues/20). `defib agent flash` clears
+> those lock bits properly.
+>
+> The remaining open issues here are kept for their diagnostic value. Please file
+> anything new against [OpenIPC/defib](https://github.com/OpenIPC/defib/issues).
+
 ## Video Tutorials
 ![YoutubeScreenshot](https://github.com/OpenIPC/burn/assets/37488/7c19fd75-1806-40c3-901e-ff087f5e35e4)
 
@@ -11,7 +52,11 @@
 
 ## Features of use in MacOS
 
-**Attention !** There are some problems with using Burn in MacOS and you can participate in the [discussion](https://github.com/OpenIPC/burn/issues/16)
+**Attention !** Burn does not work reliably on macOS — the USB-serial drivers
+corrupt the acknowledgment byte (`0x55` instead of `0xAA`), see
+[#16](https://github.com/OpenIPC/burn/issues/16). This is fixed in
+[defib](https://github.com/OpenIPC/defib), which corrects the byte automatically;
+there is no fix planned for Burn.
 
 ## Basic usage
 
